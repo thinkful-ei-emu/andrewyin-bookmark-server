@@ -39,6 +39,25 @@ app.use(cors());
 app.use('/bookmarks', bookmarkRouter);
 // app.use(express.json());
 
+app.use(function errorHandler(error, req, res, next) {
+  let response;
+
+  if (NODE_ENV === 'production') {
+    response = {
+      error: { message: 'server error' }
+    };
+  }
+  else {
+    response = {
+      message: error.message,
+      error
+    };
+  }
+
+  res.status(500).json(response);
+  next();
+});
+
 app.use(function validateBearerToken(req, res, next) {
   const apiToken = process.env.API_TOKEN;
   const authToken = req.get('Authorization');
@@ -48,7 +67,6 @@ app.use(function validateBearerToken(req, res, next) {
   }
   // move to the next middleware
   next();
-
 });
 
 app.get('/', (req, res) => {
@@ -114,23 +132,5 @@ bookmarkRouter.route('/:id')
   });
 
 
-app.use(function errorHandler(error, req, res, next) {
-  let response;
-
-  if (NODE_ENV === 'production') {
-    response = {
-      error: { message: 'server error' }
-    };
-  }
-  else {
-    console.error(error);
-    response = {
-      message: error.message,
-      error
-    };
-  }
-
-  res.status(500).json(response);
-});
 
 module.exports = app;

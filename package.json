@@ -10,6 +10,9 @@
     "predeploy": "npm audit",
     "deploy": "git push heroku master"
   },
+  "engines": {
+    "node": "10.16.0"
+  },
   "author": "Andrew Yin",
   "license": "ISC",
   "devDependencies": {
