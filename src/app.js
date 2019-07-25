@@ -3,11 +3,11 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
-const uuid = require('uuid/v4');
+// const uuid = require('uuid/v4');
 const winston = require('winston');
 
 const NODE_ENV = require('./config');
-const bookmarks = require('./store');
+const BookmarksService = require('./bookmarks-service');
 
 const app = express();
 const bookmarkRouter = express.Router();
@@ -77,60 +77,93 @@ bookmarkRouter.route('/')
   /**
    * GET /bookmarks
    */
-  .get((req, res) => {
-    res.json(bookmarks);
+  .get(async (req, res) => {
+    try {
+      const db = req.app.get('db');
+
+      const bookmarks = await BookmarksService.getAllBookmarks(db);
+
+      res.json(bookmarks);
+    }
+    catch (e) {
+      console.error(e.message);
+    }
   })
   /**
    * POST /bookmarks
    */
-  .post(bodyParser, (req, res) => {
-    const { siteName, link } = req.body;
+  .post(bodyParser, async (req, res) => {
+    const db = req.app.get('db');
+    const { bookmark_site, bookmark_link } = req.body;
 
-    if (!siteName) {
+    if (!bookmark_site) {
       return res.status(400).send('Site Name Required');
     }
-    if (!link) {
+    if (!bookmark_link) {
       return res.status(400).send('Link Required');
     }
 
-    bookmarks.push({
-      id: uuid(),
-      siteName,
-      link
-    });
+    const bookmark = {
+      bookmark_site,
+      bookmark_link
+    };
 
-    res.status(201).json(bookmarks);
+    try {
+      const bookmarks = await BookmarksService.insertBookmarks(db, bookmark);
+      res.status(201).json(bookmarks);
+    }
+    catch (e) {
+      throw e;
+    }
   });
 
-bookmarkRouter.route('/:id')
+bookmarkRouter.route('/:bookmark_id')
+  .all((req, res, next) => {
+    const { bookmark_id } = req.params;
+    if (Number.isNaN(parseInt(bookmark_id))) return res.status(400).send('Invalid Id');  
+    next();
+  })
   /**
    * GET /bookmarks/:id
    */
-  .get((req, res) => {
-    const { id } = req.params;
+  .get(async (req, res) => {
+    const db = req.app.get('db');
+    const { bookmark_id } = req.params;
 
-    const bookmark = bookmarks.find(bookmark => bookmark.id === id);
+    try {
+      const bookmark = await BookmarksService.getById(db, bookmark_id);
 
-    if (!bookmark) return res.status(404).send('404 Not Found');
+      if (!bookmark) {
+        console.log('no bookmark found');
+        return res.status(404).send('404 Not Found');
+      } 
 
-    res.json(bookmark);
+      res.json(bookmark);
+    }
+    catch (e) {
+      throw e;
+    }
   })
   /**
    * DELETE /bookmarks/:id
    */
-  .delete((req, res) => {
-    const { id } = req.params;
+  .delete(async (req, res) => {
+    const db = req.app.get('db');
+    const { bookmark_id } = req.params;
 
-    // const bookmark = bookmarks.find(bookmark => bookmark.id === id);
-    const index = bookmarks.findIndex(bookmark => bookmark.id === id);
+    try {
+      const bookmarks = await BookmarksService.getAllBookmarks(db);
+      if (!bookmarks.find(bookmark => bookmark.bookmark_id === parseInt(bookmark_id))) {
+        return res.status(404).send(`Bookmark with id ${bookmark_id} not found`);
+      }
+      else {
+        return res.status(202).end();
+      }
+    }
+    catch (e) {
+      throw e;
+    }
 
-    if (index < 0) return res.status(404).send('404 Not Found');
-
-    bookmarks.splice(index, 1);
-
-    res.status(202).send(bookmarks);
   });
-
-
 
 module.exports = app;

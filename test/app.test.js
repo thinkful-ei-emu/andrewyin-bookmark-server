@@ -1,110 +1,158 @@
 const app = require('../src/app');
+const knex = require('knex');
 
 const API_TOKEN = process.env.API_TOKEN;
-const id = 'dbfcf124-8d9a-4761-a9eb-ce47df287fe2';
+const id = '1';
 
-describe('GET /', () => {
-  it('should reject with 401 on invalid auth token', () => {
-    const BAD_TOKEN = 'fail';
-    return supertest(app)
-      .get('/')
-      .set('Authorization', `bearer ${BAD_TOKEN}`)
-      .expect(401);
+describe('Bookmarks Endpoints', function() {
+  let db;
+
+  const testBookmarks = [
+    {
+      bookmark_site: 'Google',
+      bookmark_link: 'https://www.google.com',
+    },
+    {
+      bookmark_site: 'Thinkful',
+      bookmark_link: 'https://www.thinkful.com',
+    },
+    {
+      bookmark_site: 'Reddit',
+      bookmark_link: 'https://www.reddit.com',
+    }
+  ];
+
+  before('make knex instance', () => {
+    db = knex({
+      client: 'pg',
+      connection: process.env.TEST_DB_URL
+    });
+
+    app.set('db', db);
   });
 
-  it('should succeed with valid auth token', () => {
-    return supertest(app)
-      .get('/')
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(200);
-  });
-});
+  const table = 'bookmarks';
+  after(() => db.destroy());
+  afterEach(() => db(table).truncate());
+  context('bookmarks has data', () => {
+    beforeEach(() => {
+      return db(table)
+        .insert(testBookmarks);
+    });
 
-describe('GET /bookmarks', () => {
-  it('should return an array of bookmarks', async () => {
-    const res = await supertest(app)
-      .get('/bookmarks')
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(200)
-      .expect('Content-Type', /json/);
+    describe('GET /', () => {
+      it('should reject with 401 on invalid auth token', () => {
+        const BAD_TOKEN = 'fail';
+        return supertest(app)
+          .get('/')
+          .set('Authorization', `bearer ${BAD_TOKEN}`)
+          .expect(401);
+      });
 
-    expect(res.body).to.be.an('array');
-  });
-});
+      it('should succeed with valid auth token', () => {
+        return supertest(app)
+          .get('/')
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(200);
+      });
+    });
 
-describe('POST /bookmarks', () => {
-  it('should fail with missing siteName', () => {
-    return supertest(app)
-      .post('/bookmarks')
-      .send({
-        link: 'https://www.thinkful.com'
-      })
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(400, 'Site Name Required');
-  });
+    describe('GET /bookmarks', () => {
 
-  it('should fail with missing link', () => {
-    return supertest(app)
-      .post('/bookmarks')
-      .send({
-        siteName: 'Thinkful'
-      })
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(400, 'Link Required');
+      it('should return an array of bookmarks', async () => {
+        const res = await supertest(app)
+          .get('/bookmarks')
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(200)
+          .expect('Content-Type', /json/);
 
-  });
+        expect(res.body).to.be.an('array');
+      });
+    });
 
-  it('should add a bookmark to the array', () => {
-    return supertest(app)
-      .post('/bookmarks')
-      .send({
-        siteName: 'Thinkful',
-        link: 'https://www.thinkful.com'
-      })
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(201);
-  });
-});
+    describe('POST /bookmarks', () => {
+      it('should fail with missing bookmark_site', () => {
+        return supertest(app)
+          .post('/bookmarks')
+          .send({
+            bookmark_link: 'https://www.thinkful.com'
+          })
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(400, 'Site Name Required');
+      });
 
-describe('GET /bookmarks/:id', () => {
-  it('should fail when given an id that doesn\'t exist', () => {
-    return supertest(app)
-      .get('/bookmarks/fail')
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(404, '404 Not Found');
-  });
+      it('should fail with missing link', () => {
+        return supertest(app)
+          .post('/bookmarks')
+          .send({
+            bookmark_site: 'Thinkful'
+          })
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(400, 'Link Required');
 
-  it('should return a bookmark with the matching id', async () => {
-    const res = await supertest(app)
-      .get(`/bookmarks/${id}`)
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(200);
+      });
 
-    expect(res.body).to.be.an('object');
-    expect(res.body).to.have.all.keys(
-      'id',
-      'siteName',
-      'link'
-    );
-  });
-});
+      it('should add a bookmark to the array', () => {
+        return supertest(app)
+          .post('/bookmarks')
+          .send({
+            bookmark_site: 'Thinkful',
+            bookmark_link: 'https://www.thinkful.com'
+          })
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(201);
+      });
+    });
 
-describe('DELETE /bookmarks/:id', () => {
-  it('should return 404 on nonexistant id', () => {
-    return supertest(app)
-      .delete('/bookmarks/fail')
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(404, '404 Not Found');
-  });
+    describe('ALL /bookmarks/:bookmark_id', () => {
+      it('should fail when given an id that is not an number', () => {
+        return supertest(app)
+          .get('/bookmarks/invalidid')
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(400, 'Invalid Id');
+      });
+    });
 
-  it('should delete the bookmark with the matching id', async () => {
-    await supertest(app)
-      .delete(`/bookmarks/${id}`)
-      .set('Authorization', `bearer ${API_TOKEN}`);
-      
-    return supertest(app)
-      .get(`/bookmarks/${id}`)
-      .set('Authorization', `bearer ${API_TOKEN}`)
-      .expect(404, '404 Not Found');
+    describe('GET /bookmarks/:bookmark_id', () => {
+      it('should fail when given an id that doesn\'t exist', () => {
+        return supertest(app)
+          .get('/bookmarks/12345')
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(404, '404 Not Found');
+      });
+
+      it('should return a bookmark with the matching id', async () => {
+        const res = await supertest(app)
+          .get(`/bookmarks/${id}`)
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(200);
+
+        expect(res.body).to.be.an('object');
+        expect(res.body).to.have.all.keys(
+          'bookmark_id',
+          'bookmark_site',
+          'bookmark_link',
+          'bookmark_desc',
+          'bookmark_rating'
+        );
+      });
+    });
+
+    describe('DELETE /bookmarks/:bookmark_id', () => {
+      it('should return 404 on nonexistant id', () => {
+        const badId = '12345';
+        return supertest(app)
+          .delete(`/bookmarks/${badId}`)
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(404, `Bookmark with id ${badId} not found`);
+      });
+
+      it('should delete the bookmark with the matching id', () => {
+        return supertest(app)
+          .delete(`/bookmarks/${id}`)
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(202);
+      });
+    });
   });
 });
