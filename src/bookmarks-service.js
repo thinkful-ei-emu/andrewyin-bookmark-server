@@ -21,6 +21,11 @@ const BookmarksService = {
       .where({ bookmark_id })
       .delete()
       .returning('*');
+  },
+  updateBookmark(db, bookmark_id, newBookmarkInfo) {
+    return db(table)
+      .where({ bookmark_id })
+      .update(newBookmarkInfo);
   }
 };
 

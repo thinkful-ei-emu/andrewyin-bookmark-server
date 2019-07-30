@@ -154,5 +154,36 @@ describe('Bookmarks Endpoints', function() {
           .expect(202);
       });
     });
+
+    describe('PATCH /bookmarks/:bookmark_id',  () => {
+      it('should repond 204 and update the article', async () => {
+        const res = await supertest(app)
+          .get(`/bookmarks/${id}`);
+        const currentBookmark = res.body;
+        
+        const updateInfo = {
+          bookmark_site: 'Bing',
+          bookmark_link: 'https://www.bing.com'
+        };
+
+        const updatedBookmark = {
+          bookmark_id: currentBookmark.bookmark_id,
+          bookmark_site: updateInfo.bookmark_site,
+          bookmark_link: updateInfo.bookmark_link,
+          bookmark_desc: currentBookmark.bookmark_desc,
+          bookmark_rating: currentBookmark.bookmark_rating
+        };
+        await supertest(app)
+          .patch(`/bookmarks/${id}`)
+          .send(updateInfo)
+          .set('Authorization', `bearer ${API_TOKEN}`)
+          .expect(204);
+
+        const updateRes = await supertest(app)
+          .get(`/bookmarks/${id}`);
+        const updatedData = updateRes.body;
+        expect(updatedData).to.eql(updatedBookmark);
+      });
+    });
   });
 });

@@ -65,6 +65,7 @@ app.use(function validateBearerToken(req, res, next) {
   if (!authToken || authToken.split(' ')[1] !== apiToken) {
     return res.status(401).json({ error: 'Unauthorized request' });
   }
+
   // move to the next middleware
   next();
 });
@@ -94,7 +95,7 @@ bookmarkRouter.route('/')
    */
   .post(bodyParser, async (req, res) => {
     const db = req.app.get('db');
-    const { bookmark_site, bookmark_link } = req.body;
+    const { bookmark_site, bookmark_link, bookmark_desc, bookmark_rating } = req.body;
 
     if (!bookmark_site) {
       return res.status(400).send('Site Name Required');
@@ -108,6 +109,12 @@ bookmarkRouter.route('/')
       bookmark_link
     };
 
+    if (bookmark_desc) Object.assign(bookmark, { bookmark_desc });
+    if (bookmark_rating) {
+      if (bookmark_rating > 5 || bookmark_rating < 1) return res.status(400).status('Rating must be between 1 and 5.');
+      else Object.assign(bookmark, { bookmark_rating });
+    }
+
     try {
       const bookmarks = await BookmarksService.insertBookmarks(db, bookmark);
       res.status(201).json(bookmarks);
@@ -120,11 +127,11 @@ bookmarkRouter.route('/')
 bookmarkRouter.route('/:bookmark_id')
   .all((req, res, next) => {
     const { bookmark_id } = req.params;
-    if (Number.isNaN(parseInt(bookmark_id))) return res.status(400).send('Invalid Id');  
+    if (Number.isNaN(parseInt(bookmark_id))) return res.status(400).send('Invalid Id');
     next();
   })
   /**
-   * GET /bookmarks/:id
+   * GET /bookmarks/:bookmark_id
    */
   .get(async (req, res) => {
     const db = req.app.get('db');
@@ -136,7 +143,7 @@ bookmarkRouter.route('/:bookmark_id')
       if (!bookmark) {
         console.log('no bookmark found');
         return res.status(404).send('404 Not Found');
-      } 
+      }
 
       res.json(bookmark);
     }
@@ -145,7 +152,7 @@ bookmarkRouter.route('/:bookmark_id')
     }
   })
   /**
-   * DELETE /bookmarks/:id
+   * DELETE /bookmarks/:bookmark_id
    */
   .delete(async (req, res) => {
     const db = req.app.get('db');
@@ -163,7 +170,30 @@ bookmarkRouter.route('/:bookmark_id')
     catch (e) {
       throw e;
     }
+  })
+  /**
+   * PATCH /bookmarks/:bookmark_id
+   */
+  .patch(bodyParser, async (req, res, next) => {
+    const db = req.app.get('db');
+    const { bookmark_id } = req.params;
+    const { bookmark_site, bookmark_link, bookmark_desc, bookmark_rating } = req.body;
 
+    try {
+      const updatedInfo = {
+        bookmark_site,
+        bookmark_link,
+        bookmark_desc,
+        bookmark_rating
+      };
+      const updatedBookmark = await BookmarksService.updateBookmark(db, bookmark_id, updatedInfo);
+
+      res.status(204).json(updatedBookmark);
+      next();
+    }
+    catch (e) {
+      throw e;
+    }
   });
 
 module.exports = app;
